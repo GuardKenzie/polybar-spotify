@@ -168,7 +168,7 @@ try:
         raise dbus.exceptions.DBusException
 
     if use_mpd:
-        album, artist, song = getMPDInfo()
+        play_pause, album, artist, song = getMPDInfo()
     else:
         artist = fix_string(metadata['xesam:artist'][0]) if metadata['xesam:artist'] else ''
         song = fix_string(metadata['xesam:title']) if metadata['xesam:title'] else ''
