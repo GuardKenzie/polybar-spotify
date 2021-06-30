@@ -2,7 +2,13 @@
 
 import sys
 import dbus
+import os
 import argparse
+from mpd import MPDClient
+
+# MPD
+client = MPDClient()
+client.connect("localhost", 6600)
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -85,6 +91,47 @@ if args.custom_format is not None:
 if args.play_pause is not None:
     play_pause = args.play_pause
 
+play_pause = play_pause.split(',')
+
+def getMPDInfo():
+    global play_pause
+    state = client.status()["state"]
+    if state == "play":
+        play_pause = play_pause[0]
+    elif state == "pause":
+        play_pause = play_pause[1]
+    else:
+        play_pause = str()
+
+    song = client.currentsong()
+    album = song["album"] if "album" in song.keys() else ""
+    artist = song["artist"] if "album" in song.keys() else ""
+    title = song["title"] if "album" in song.keys() else os.path.basename(song["file"])
+
+    return play_pause, artist, title, album
+
+
+def printInfo(play_pause, artist, song, album, mpd=True):
+    if play_pause_font:
+        play_pause = label_with_font.format(font=play_pause_font, label=play_pause)
+
+    # Handle main label
+
+    if (quiet and status == 'Paused') or (not artist and not song and not album):
+        print('')
+    else:
+        if font:
+            artist = label_with_font.format(font=font, label=artist)
+            song = label_with_font.format(font=font, label=song)
+            album = label_with_font.format(font=font, label=album)
+
+        # Add 4 to trunclen to account for status symbol, spaces, and other padding characters
+        print(output.format(artist=artist, 
+                                     song=song, 
+                                     play_pause=play_pause, 
+                                     album=album) + f" on {'MPD' if mpd else 'Spotify'}")
+
+
 try:
     session_bus = dbus.SessionBus()
     spotify_bus = session_bus.get_object(
@@ -99,43 +146,43 @@ try:
 
     metadata = spotify_properties.Get('org.mpris.MediaPlayer2.Player', 'Metadata')
     status = spotify_properties.Get('org.mpris.MediaPlayer2.Player', 'PlaybackStatus')
-
-    # Handle play/pause label
-
-    play_pause = play_pause.split(',')
+    mpd_status = client.status()["state"]
 
     if status == 'Playing':
         play_pause = play_pause[0]
-    elif status == 'Paused':
+        use_mpd = False
+    elif status == 'Paused' and mpd_status != "play":
         play_pause = play_pause[1]
+        use_mpd = False
+    elif status == 'Paused' and mpd_status == "play":
+        play_pause = play_pause[0]
+        use_mpd = True
+    elif mpd_status == "play":
+        use_mpd = True
+        play_pause = play_pause[0]
+    elif mpd_status == "pause":
+        play_pause = play_pause[1]
+        use_mpd = True
     else:
-        play_pause = str()
+        use_mpd = False
+        raise dbus.exceptions.DBusException
 
-    if play_pause_font:
-        play_pause = label_with_font.format(font=play_pause_font, label=play_pause)
-
-    # Handle main label
-
-    artist = fix_string(metadata['xesam:artist'][0]) if metadata['xesam:artist'] else ''
-    song = fix_string(metadata['xesam:title']) if metadata['xesam:title'] else ''
-    album = fix_string(metadata['xesam:album']) if metadata['xesam:album'] else ''
-
-    if (quiet and status == 'Paused') or (not artist and not song and not album):
-        print('')
+    if use_mpd:
+        album, artist, song = getMPDInfo()
     else:
-        if font:
-            artist = label_with_font.format(font=font, label=artist)
-            song = label_with_font.format(font=font, label=song)
-            album = label_with_font.format(font=font, label=album)
+        artist = fix_string(metadata['xesam:artist'][0]) if metadata['xesam:artist'] else ''
+        song = fix_string(metadata['xesam:title']) if metadata['xesam:title'] else ''
+        album = fix_string(metadata['xesam:album']) if metadata['xesam:album'] else ''
 
-        # Add 4 to trunclen to account for status symbol, spaces, and other padding characters
-        print(truncate(output.format(artist=artist, 
-                                     song=song, 
-                                     play_pause=play_pause, 
-                                     album=album), trunclen + 4))
+    printInfo(play_pause, artist, song, album, use_mpd)
+
+
 
 except Exception as e:
     if isinstance(e, dbus.exceptions.DBusException):
-        print('')
+        if client.status()["state"] != "stop":
+            printInfo(*getMPDInfo())
+        else:
+            print("Nothin's jammin', bud")
     else:
         print(e)
