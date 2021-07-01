@@ -97,18 +97,18 @@ def getMPDInfo():
     global play_pause
     state = client.status()["state"]
     if state == "play":
-        play_pause = play_pause[0]
+        play_pause_out = play_pause[0]
     elif state == "pause":
-        play_pause = play_pause[1]
+        play_pause_out = play_pause[1]
     else:
-        play_pause = str()
+        play_pause_out = str()
 
     song = client.currentsong()
     album = song["album"] if "album" in song.keys() else ""
     artist = song["artist"] if "album" in song.keys() else ""
     title = song["title"] if "album" in song.keys() else os.path.basename(song["file"])
 
-    return play_pause, artist, title, album
+    return play_pause_out, artist, title, album
 
 
 def printInfo(play_pause, artist, song, album, mpd=True):
@@ -168,20 +168,21 @@ try:
         raise dbus.exceptions.DBusException
 
     if use_mpd:
-        play_pause, album, artist, song = getMPDInfo()
+        _, artist, song, album = getMPDInfo()
     else:
         artist = fix_string(metadata['xesam:artist'][0]) if metadata['xesam:artist'] else ''
         song = fix_string(metadata['xesam:title']) if metadata['xesam:title'] else ''
         album = fix_string(metadata['xesam:album']) if metadata['xesam:album'] else ''
 
-    printInfo(play_pause, artist, song, album, use_mpd)
+    printInfo(play_pause, artist, song, album, mpd=use_mpd)
 
 
 
 except Exception as e:
     if isinstance(e, dbus.exceptions.DBusException):
         if client.status()["state"] != "stop":
-            printInfo(*getMPDInfo())
+            play_pause, artist, song, album = getMPDInfo()
+            printInfo(play_pause, artist, song, album, True)
         else:
             print("Nothin's jammin', bud")
     else:
