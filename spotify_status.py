@@ -109,7 +109,7 @@ def getMPDInfo():
     song = client.currentsong()
     album = song["album"] if "album" in song.keys() else ""
     artist = song["artist"] if "album" in song.keys() else ""
-    title = song["title"] if "album" in song.keys() else os.path.basename(song["file"])
+    title = song["title"] if "album" in song.keys() else (os.path.basename(song["file"]) if "file" in song.keys() else "")
 
     return {"playing": playing, "artist": artist, "song": title, "album": album}
 
